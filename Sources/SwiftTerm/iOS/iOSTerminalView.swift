@@ -178,7 +178,13 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     var debug: UIView?
     var pendingDisplay: Bool = false
     var cellDimension: CellDimension
+
+    /// Public access to the cell dimensions (width/height in points per terminal cell).
+    public var cellSize: CGSize { cellDimension }
     var caretView: CaretView?
+
+    /// Public access to the caret (cursor) view for visibility control.
+    public var caretUIView: UIView? { caretView }
     var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
     private var progressReportTimer: Timer?
@@ -1258,7 +1264,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
     
-    func updateScroller ()
+    open func updateScroller ()
     {
         let displayBuffer = terminal.displayBuffer
         contentSize = CGSize (width: CGFloat (displayBuffer.cols) * cellDimension.width,
