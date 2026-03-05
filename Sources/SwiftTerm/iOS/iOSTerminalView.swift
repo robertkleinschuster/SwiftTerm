@@ -185,6 +185,16 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     /// Public access to the caret (cursor) view for visibility control.
     public var caretUIView: UIView? { caretView }
+
+    /// When true, the CaretView is automatically hidden when the terminal
+    /// enters alternate screen mode (TUI apps like vim, htop draw their own cursor).
+    public var autoHideCaretInAlternateScreen: Bool = false
+
+    /// When false, `updateScroller()` skips the contentOffset reset so the user's
+    /// scroll position is preserved while new output arrives. Embedders should set
+    /// this to false when the user scrolls up and back to true when they return to bottom.
+    public var autoScrollToBottom: Bool = true
+
     var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
     private var progressReportTimer: Timer?
@@ -292,6 +302,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         setupGestures ()
         setupLinkReportingInteractions()
         setupAccessoryView ()
+        // Suppress the iOS system insertion cursor — SwiftTerm renders its own via CaretView.
+        tintColor = .clear
         didFinishSetup = true
     }
 
@@ -1178,6 +1190,13 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     open func bufferActivated(source: Terminal) {
         updateScroller ()
+        if autoHideCaretInAlternateScreen {
+            if source.isCurrentBufferAlternate {
+                caretView?.removeFromSuperview()
+            } else if let cv = caretView, cv.superview == nil {
+                addSubview(cv)
+            }
+        }
     }
     
     open func send(source: Terminal, data: ArraySlice<UInt8>) {
@@ -1269,10 +1288,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         let displayBuffer = terminal.displayBuffer
         contentSize = CGSize (width: CGFloat (displayBuffer.cols) * cellDimension.width,
                               height: CGFloat (displayBuffer.lines.count) * cellDimension.height)
-        //contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
+        guard autoScrollToBottom else { return }
         contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
-        //Xscroller.doubleValue = scrollPosition
-        //Xscroller.knobProportion = scrollThumbsize
     }
     
     var userScrolling = false
@@ -2376,6 +2393,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     open func showCursor(source: Terminal) {
         guard let caretView else { return }
+        if autoHideCaretInAlternateScreen && source.isCurrentBufferAlternate { return }
         if caretView.superview == nil {
             addSubview(caretView)
         }
@@ -2515,5 +2533,29 @@ extension TerminalViewDelegate {
     }
 }
 #endif
+
+// MARK: - Static Cell Dimensions
+
+extension TerminalView {
+    /// Compute cell dimensions for a given font without instantiating a TerminalView.
+    /// Matches the logic in `computeFontDimensions()` for consistent column/row sizing.
+    public static func cellDimensions(for font: UIFont) -> CGSize {
+        let ctFont = font as CTFont
+        let ascent = CTFontGetAscent(ctFont)
+        let descent = CTFontGetDescent(ctFont)
+        let leading = CTFontGetLeading(ctFont)
+        let rawHeight = ceil(ascent + descent + leading)
+        let fontAttributes: [NSAttributedString.Key: Any] = [.font: font]
+        let rawWidth = "W".size(withAttributes: fontAttributes).width
+        #if os(visionOS)
+        let scale: CGFloat = 1.0
+        #else
+        let scale = UIScreen.main.scale
+        #endif
+        let snappedWidth = ceil(rawWidth * scale) / scale
+        let snappedHeight = ceil(rawHeight * scale) / scale
+        return CGSize(width: max(1, snappedWidth), height: max(min(snappedHeight, 8192), 1))
+    }
+}
 
 #endif
