@@ -1158,7 +1158,12 @@ open class Terminal {
     
     func printStateReset ()
     {
-        readingBuffer.reset ()
+        // Preserve incomplete UTF-8 bytes across state resets.
+        // When an escape sequence arrives between a UTF-8 lead byte and its
+        // continuation bytes (feed split at a UTF-8 boundary), the putback
+        // buffer holds the lead byte(s). Clearing it would silently lose them,
+        // causing U+FFFD on the next feed when the continuation arrives.
+        readingBuffer.rest = [][...]
     }
     
     // TODO: was this unused
