@@ -653,8 +653,19 @@ extension TerminalView {
                 previousPlaceholder = placeholder
                 previousPlaceholderAttribute = attr
             } else {
-                // Common path: just accumulate into the batch
-                pendingText.append(character)
+                // Common path: just accumulate into the batch.
+                // For emoji-capable characters without VS16, append VS15 (U+FE0E) to force
+                // text presentation — prevents CoreText's automatic Apple Color Emoji fallback.
+                // Terminal convention: text presentation by default, emoji only with explicit VS16.
+                if ch.width == 1,
+                   let base = character.unicodeScalars.first,
+                   UnicodeUtil.isEmojiVs16Base(rune: base),
+                   !character.unicodeScalars.contains(where: { $0.value == 0xFE0F }) {
+                    pendingText.append(character)
+                    pendingText.append("\u{FE0E}")
+                } else {
+                    pendingText.append(character)
+                }
                 previousPlaceholder = nil
                 previousPlaceholderAttribute = nil
             }

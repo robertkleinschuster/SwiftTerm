@@ -625,5 +625,59 @@ final class SwiftTermUnicode {
         #expect(t.buffer.y == 1)  // Should be on second line
     }
 
+    // MARK: - Emoji Presentation vs Text Presentation
+
+    @Test func testEmojiCapableDefaultsToTextWidth() {
+        // U+23FA (⏺ Black Circle for Record) is in emojiVs16Base.
+        // Without VS16, it should default to text presentation (width 1).
+        let h = HeadlessTerminal(queue: SwiftTermTests.queue) { _ in }
+        let t = h.terminal!
+
+        t.feed(text: "\u{23FA}x")
+
+        let cd = t.getCharData(col: 0, row: 0)
+        #expect(cd?.width == 1, "Emoji-capable char without VS16 should be width 1 (text presentation)")
+        #expect(t.getCharacter(col: 1, row: 0) == "x", "x should be at column 1")
+    }
+
+    @Test func testEmojiCapableWithVS16GetsEmojiWidth() {
+        // U+23FA + U+FE0F should get emoji presentation (width 2).
+        let h = HeadlessTerminal(queue: SwiftTermTests.queue) { _ in }
+        let t = h.terminal!
+
+        t.feed(text: "\u{23FA}\u{FE0F}x")
+
+        let cd = t.getCharData(col: 0, row: 0)
+        #expect(cd?.width == 2, "Emoji-capable char with VS16 should be width 2 (emoji presentation)")
+
+        let ch = t.getCharacter(col: 0, row: 0)
+        let hasVS16 = ch?.unicodeScalars.contains(where: { $0.value == 0xFE0F }) ?? false
+        #expect(hasVS16, "Stored character should contain VS16")
+
+        #expect(t.getCharacter(col: 2, row: 0) == "x", "x should be at column 2 (after 2-wide emoji)")
+    }
+
+    @Test func testBrailleNotInEmojiVs16Base() {
+        // Braille characters (U+28xx, used by btop) are NOT emoji-capable.
+        // They should never get VS15 appended during rendering.
+        #expect(!UnicodeUtil.isEmojiVs16Base(rune: Unicode.Scalar(0x2800)!), "Braille space should not be emoji-capable")
+        #expect(!UnicodeUtil.isEmojiVs16Base(rune: Unicode.Scalar(0x28FF)!), "Braille full should not be emoji-capable")
+        #expect(!UnicodeUtil.isEmojiVs16Base(rune: Unicode.Scalar(0x2587)!), "Block element should not be emoji-capable")
+
+        // Verify Braille renders at width 1
+        let h = HeadlessTerminal(queue: SwiftTermTests.queue) { _ in }
+        let t = h.terminal!
+        t.feed(text: "\u{28FF}x")
+        #expect(t.getCharData(col: 0, row: 0)?.width == 1)
+        #expect(t.getCharacter(col: 1, row: 0) == "x")
+    }
+
+    @Test func testEmojiVs16BaseTableIncludesRecordButton() {
+        // Verify U+23FA is in the emojiVs16Base table (prerequisite for VS15 fix)
+        #expect(UnicodeUtil.isEmojiVs16Base(rune: Unicode.Scalar(0x23FA)!), "U+23FA should be in emojiVs16Base")
+        #expect(UnicodeUtil.isEmojiVs16Base(rune: Unicode.Scalar(0x23F8)!), "U+23F8 should be in emojiVs16Base")
+        #expect(UnicodeUtil.isEmojiVs16Base(rune: Unicode.Scalar(0x2615)!), "U+2615 (☕) should be in emojiVs16Base")
+    }
+
 }
 #endif
