@@ -97,6 +97,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     var cellDimension: CellDimension!
     var caretView: CaretView!
+    /// When true, the CaretView is automatically hidden when the terminal
+    /// enters alternate screen mode (TUI apps like vim, htop draw their own cursor).
+    public var autoHideCaretInAlternateScreen: Bool = false
     public var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
     private var progressReportTimer: Timer?

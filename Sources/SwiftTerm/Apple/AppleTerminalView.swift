@@ -1520,7 +1520,9 @@ extension TerminalView {
             caretView.removeFromSuperview()
             return
         } else if terminal.cursorHidden == false && caretView.superview != self {
-            addSubview(caretView)
+            if !(autoHideCaretInAlternateScreen && terminal.isCurrentBufferAlternate) {
+                addSubview(caretView)
+            }
         } else if terminal.cursorHidden == true && caretView.superview == self {
             caretView.removeFromSuperview()
         }
